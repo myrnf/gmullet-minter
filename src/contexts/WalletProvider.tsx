@@ -1,8 +1,8 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { formatEther } from "viem"
-import { publicClient } from "@/lib/viem"
+import { createPublicClient, custom, formatEther, http } from "viem"
+import { scroll } from "viem/chains"
 
 interface WalletContextType {
   account: string | null
@@ -24,8 +24,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateBalance = async (address: string) => {
     setIsBalanceLoading(true)
+    const publicClient = createPublicClient({
+        chain: scroll,
+        transport: http(),
+      });
     try {
-      const balance = await publicClient.getBalance({ address })
+      const balance = await publicClient.getBalance({ 
+        address: address as `0x${string}` 
+      })
       setBalance(formatEther(balance))
     } catch (error) {
       console.error('Error fetching balance:', error)

@@ -34,7 +34,7 @@ export default function WalletConnect() {
   return (
     <div className="flex items-center gap-4">
       <div className="text-sm text-gray-600">
-        {parseFloat(balance).toFixed(4)} ETH
+        {parseFloat(balance).toFixed(5)} ETH
       </div>
       
       <DropdownMenu>

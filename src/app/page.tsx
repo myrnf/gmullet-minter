@@ -212,6 +212,7 @@ export default function NFTMinter() {
                 Deny
               </button>
               <button
+                disabled={intentRefreshing}
                 onClick={() => {
                   setIntentOpen(false);
                   intentData.current.allow();

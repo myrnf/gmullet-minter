@@ -17,7 +17,7 @@ import { scroll } from "viem/chains";
 import { GMULLET_ABI, GMULLET_CONTRACT_ADDRESS } from "@/contracts/GMulletNFT";
 import { toast } from "sonner";
 import { EthereumProvider } from "@arcana/ca-sdk";
-import { getCA } from "@/lib/utils";
+import { getCA, setAsyncInterval, clearAsyncInterval } from "@/lib/utils";
 import { Intent } from "@arcana/ca-sdk";
 
 export default function NFTMinter() {
@@ -25,24 +25,39 @@ export default function NFTMinter() {
   const { account, balance, isConnecting, isBalanceLoading, updateBalance } =
     useWalletContext();
   const [isMinting, setIsMinting] = useState(false);
+
+  // CA: Start
   const [intentOpen, setIntentOpen] = useState(false);
+  const [intentRefreshing, setIntentRefreshing] = useState(false);
   const intentData = useRef({
     allow: () => {},
     deny: () => {},
     intent: null as Intent | null,
+    intervalHandler: null as number | null,
   });
 
   useEffect(() => {
     if (window.ethereum) {
       const ca = getCA(window.ethereum as unknown as EthereumProvider);
-      ca.setOnIntentHook(({ allow, deny, intent }) => {
+      ca.setOnIntentHook(({ allow, deny, intent, refresh }) => {
         intentData.current.allow = allow;
         intentData.current.deny = deny;
         intentData.current.intent = intent;
         setIntentOpen(true);
+        setTimeout(() => {
+          intentData.current.intervalHandler = setAsyncInterval(async () => {
+            console.time("intentRefresh");
+            setIntentRefreshing(true);
+            intentData.current.intent = await refresh();
+            setIntentRefreshing(false);
+            console.timeEnd("intentRefresh");
+          }, 5000);
+        }, 5000);
       });
     }
   }, []);
+  // CA: End
+
   // Don't show any balance-related messages while loading
   const isLoading = isConnecting || isBalanceLoading || isMinting;
 
@@ -189,6 +204,9 @@ export default function NFTMinter() {
                 onClick={() => {
                   setIntentOpen(false);
                   intentData.current.deny();
+                  if (intentData.current.intervalHandler) {
+                    clearAsyncInterval(intentData.current.intervalHandler);
+                  }
                 }}
               >
                 Deny
@@ -197,9 +215,12 @@ export default function NFTMinter() {
                 onClick={() => {
                   setIntentOpen(false);
                   intentData.current.allow();
+                  if (intentData.current.intervalHandler) {
+                    clearAsyncInterval(intentData.current.intervalHandler);
+                  }
                 }}
               >
-                Allow
+                {intentRefreshing ? "Refreshing" : "Allow"}
               </button>
             </div>
           </>

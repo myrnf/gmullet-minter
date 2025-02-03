@@ -1,5 +1,8 @@
+import { getCA } from '@/lib/utils';
+import { EthereumProvider } from '@arcana/ca-sdk';
 import { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import { createPublicClient, createWalletClient, custom, formatEther, http } from 'viem';
+import { scroll } from 'viem/chains';
 
 export function useWallet() {
   const [account, setAccount] = useState<string | null>(null);
@@ -7,14 +10,22 @@ export function useWallet() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
 
+  const publicClient = createPublicClient({
+    chain: scroll,
+    transport: http()
+  });
+
   const updateBalance = async (address: string) => {
     if (!window.ethereum) return;
     
     try {
       setIsBalanceLoading(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const balance = await provider.getBalance(address);
-      setBalance(ethers.formatEther(balance));
+      // CA: Get unified balance
+      const ca = getCA(window.ethereum as unknown as EthereumProvider);
+      await ca.init();
+
+      const balance = await ca.getUnifiedBalance("ETH")
+      setBalance(balance?.balance ?? '0');
     } catch (error) {
       console.error('Error fetching balance:', error);
     } finally {
@@ -30,18 +41,20 @@ export function useWallet() {
 
     try {
       setIsConnecting(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const walletClient = createWalletClient({
+        chain: scroll,
+        transport: custom(window.ethereum)
+      });
       
       // Request account access
-      const accounts = await provider.send("eth_requestAccounts", []);
-      const account = accounts[0];
-      setAccount(account);
+      const [address] = await walletClient.requestAddresses();
+      setAccount(address);
 
       // Switch to Scroll network if not already on it
       try {
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x82750' }], // Scroll Mainnet chainId (534352 in hex)
+          params: [{ chainId: '0x82750' }], // Scroll Mainnet chainId
         });
       } catch (switchError: any) {
         // If the network doesn't exist, add it
@@ -64,7 +77,7 @@ export function useWallet() {
       }
 
       // Get and set balance
-      await updateBalance(account);
+      await updateBalance(address);
 
     } catch (error) {
       console.error('Error connecting wallet:', error);
@@ -92,7 +105,7 @@ export function useWallet() {
       });
 
       window.ethereum.on('chainChanged', () => {
-        window.location.reload();
+        // window.location.reload();
       });
     }
 

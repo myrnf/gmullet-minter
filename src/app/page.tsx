@@ -7,9 +7,12 @@ import WalletConnect from "@/components/wallet-connect"
 import { useState } from "react"
 import { useWalletContext } from "@/contexts/WalletProvider"
 import { Loader2 } from "lucide-react"
-import { ethers } from "ethers"
+import { createWalletClient,createPublicClient, custom, parseEther } from "viem"
+import { scroll } from "viem/chains"
 import { GMULLET_ABI, GMULLET_CONTRACT_ADDRESS } from "@/contracts/GMulletNFT"
 import { toast } from "sonner"
+import { EthereumProvider } from "@arcana/ca-sdk"
+import { getCA } from "@/lib/utils"
 
 export default function NFTMinter() {
   const [nftPrice] = useState<number>(0.0005) // ETH price
@@ -29,42 +32,52 @@ export default function NFTMinter() {
     if (!window.ethereum || !account) return;
 
     try {
+      // CA: Create wallet client and public client
+      const ca = getCA(window.ethereum as unknown as EthereumProvider);
       setIsMinting(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      
-      const contract = new ethers.Contract(
-        GMULLET_CONTRACT_ADDRESS,
-        GMULLET_ABI,
-        signer
-      );
 
+      const walletClient = createWalletClient({
+        chain: scroll,
+        transport: custom(ca)
+      });
+      
+      const publicClient = createPublicClient({
+        chain: scroll,
+        transport: custom(window.ethereum)
+      });
+
+
+      
       // Create transaction
-      const tx = await contract.mint({
-        value: ethers.parseEther(nftPrice.toString())
+      const hash = await walletClient.writeContract({
+        address: GMULLET_CONTRACT_ADDRESS,
+        abi: GMULLET_ABI,
+        functionName: 'mint',
+        value: parseEther(nftPrice.toString()),
+        account: account as `0x${string}`,
       });
 
       // Show pending toast
       toast.loading("Minting your GMullet NFT...", {
-        id: tx.hash,
+        id: hash,
       });
 
       // Wait for transaction to be mined
-      const receipt = await tx.wait();
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
       // Update balance after successful mint
       await updateBalance(account);
 
       // Show success toast
       toast.success("Successfully minted your GMullet NFT!", {
-        id: tx.hash,
+        id: hash,
       });
 
       // Add link to transaction
       toast.message("View on ScrollScan", {
         action: {
           label: "View",
-          onClick: () => window.open(`https://scrollscan.com/tx/${receipt.hash}`, '_blank'),
+          onClick: () => window.open(`https://scrollscan.com/tx/${receipt.transactionHash}`, '_blank'),
         },
       });
 

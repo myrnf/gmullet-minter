@@ -1,0 +1,149 @@
+// Install Arcana SDK
+npm i @arcana/ca-sdk@0.0.4-beta.3
+
+//Create CA instance in lib/utils
+let ca: CA | null = null;
+const getCA = (provider: EthereumProvider) => {
+  if (!ca) {
+    ca = new CA(provider);
+  }
+  return ca;
+};
+
+export { getCA };
+
+// Show unified balance in hooks/useWallet.ts
+const ca = getCA(window.ethereum as unknown as EthereumProvider);
+await ca.init();
+
+const balance = await ca.getUnifiedBalance("ETH")
+setBalance(balance?.balance ?? '0');
+
+// Setup to check for need of CA tx and proceed to mint
+const ca = getCA(window.ethereum as unknown as EthereumProvider);
+
+const walletClient = createWalletClient({
+    chain: scroll,
+    transport: custom(ca),
+});
+
+// Handle Intent in NFTMinter()
+const [intentOpen, setIntentOpen] = useState(false);
+  const [intentRefreshing, setIntentRefreshing] = useState(false);
+  const intentData = useRef({
+    allow: () => {},
+    deny: () => {},
+    intent: null as Intent | null,
+    intervalHandler: null as number | null,
+  });
+
+  useEffect(() => {
+    if (window.ethereum) {
+      const ca = getCA(window.ethereum as unknown as EthereumProvider);
+      ca.setOnIntentHook(({ allow, deny, intent, refresh }) => {
+        intentData.current.allow = allow;
+        intentData.current.deny = deny;
+        intentData.current.intent = intent;
+        setIntentOpen(true);
+        setTimeout(() => {
+          intentData.current.intervalHandler = setAsyncInterval(async () => {
+            console.time("intentRefresh");
+            setIntentRefreshing(true);
+            intentData.current.intent = await refresh();
+            setIntentRefreshing(false);
+            console.timeEnd("intentRefresh");
+          }, 5000);
+        }, 5000);
+      });
+    }
+  }, []);
+
+//Intent Dialog in <main>
+<Dialog open={intentOpen} onOpenChange={(open) => {
+    if (!open) {
+    if (intentData.current.intervalHandler !== null) {
+        clearAsyncInterval(intentData.current.intervalHandler);
+        intentData.current.intervalHandler = null;
+    }
+    intentData.current.deny();
+    }
+    setIntentOpen(open);
+}}>
+    <DialogContent>
+    <DialogHeader>
+        <DialogTitle>Confirm Transaction</DialogTitle>
+    </DialogHeader>
+    
+    <div className="space-y-4">
+        <div className="p-4 bg-gray-50 rounded-lg">
+        <div className="text-sm font-medium mb-2">Total Amount (including fees)</div>
+        <div className="text-lg font-semibold">
+            {intentData.current.intent?.sourcesTotal}
+        </div>
+        </div>
+
+        <div className="space-y-2">
+        <div className="text-sm font-medium">Source Chains</div>
+        {intentData.current.intent?.sources.map((s) => (
+            <div key={s.chainID} className="p-3 bg-gray-50 rounded-lg">
+            <div className="font-medium">{s.chainName}</div>
+            <div className="text-sm text-gray-600">
+                {s.amount} {intentData.current.intent?.token.symbol}
+            </div>
+            </div>
+        ))}
+        </div>
+
+        <div className="space-y-2">
+        <div className="text-sm font-medium">Fee Breakdown</div>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>Solver Fees:</div>
+            <div>{intentData.current.intent?.fees.solver}</div>
+            <div>CA Fees:</div>
+            <div>{intentData.current.intent?.fees.caGas}</div>
+            <div>Gas Supplied:</div>
+            <div>{intentData.current.intent?.fees.gasSupplied}</div>
+            <div className="font-medium">Total Fees:</div>
+            <div className="font-medium">{intentData.current.intent?.fees.total}</div>
+        </div>
+        </div>
+
+        <div className="flex gap-3 justify-end">
+        <Button
+            variant="outline"
+            onClick={() => {
+            setIntentOpen(false);
+            if (intentData.current.intervalHandler !== null) {
+                clearAsyncInterval(intentData.current.intervalHandler);
+                intentData.current.intervalHandler = null;
+            }
+            intentData.current.deny();
+            }}
+        >
+            Deny
+        </Button>
+        <Button
+            disabled={intentRefreshing}
+            onClick={() => {
+            setIntentOpen(false);
+            if (intentData.current.intervalHandler !== null) {
+                clearAsyncInterval(intentData.current.intervalHandler);
+                intentData.current.intervalHandler = null;
+            }
+            intentData.current.allow();
+            }}
+        >
+            {intentRefreshing ? (
+            <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Refreshing...</span>
+            </div>
+            ) : (
+            "Allow"
+            )}
+        </Button>
+        </div>
+    </div>
+    </DialogContent>
+</Dialog>
+

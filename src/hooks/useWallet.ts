@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
+import { createPublicClient, createWalletClient, custom, formatEther, http } from 'viem';
+import { scroll } from 'viem/chains';
 
 export function useWallet() {
   const [account, setAccount] = useState<string | null>(null);

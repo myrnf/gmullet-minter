@@ -8,14 +8,20 @@ export function useWallet() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
 
+  const publicClient = createPublicClient({
+    chain: scroll,
+    transport: http()
+  });
+
   const updateBalance = async (address: string) => {
     if (!window.ethereum) return;
     
     try {
       setIsBalanceLoading(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const balance = await provider.getBalance(address);
-      setBalance(ethers.formatEther(balance));
+      const balance = await publicClient.getBalance({ 
+        address: address as `0x${string}` 
+      });
+      setBalance(formatEther(balance));
     } catch (error) {
       console.error('Error fetching balance:', error);
     } finally {
@@ -31,11 +37,13 @@ export function useWallet() {
 
     try {
       setIsConnecting(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const walletClient = createWalletClient({
+        chain: scroll,
+        transport: custom(window.ethereum)
+      });
       
       // Request account access
-      const accounts = await provider.send("eth_requestAccounts", []);
-      const account = accounts[0];
+      const [account] = await walletClient.requestAddresses();
       setAccount(account);
 
       // Switch to Scroll network if not already on it

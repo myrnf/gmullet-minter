@@ -12,6 +12,7 @@ interface WalletContextType {
   isBalanceLoading: boolean
   connectWallet: () => Promise<void>
   disconnectWallet: () => void
+  updateBalance: (address: string) => Promise<void>
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)

@@ -2,8 +2,11 @@
 
 import { createContext, useContext } from "react"
 import { createPublicClient, createWalletClient, custom, formatEther, http } from "viem"
-import { scroll } from "viem/chains"
+import { scroll, base, arbitrum, optimism, polygon, linea } from "viem/chains"
 import { useWallet } from "../hooks/useWallet"
+import { createConfig, WagmiProvider } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { injected } from 'wagmi/connectors'
 
 interface WalletContextType {
   account: string | null
@@ -17,13 +20,36 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
+// Configure wagmi
+const config = createConfig({
+  chains: [scroll],
+  transports: {
+    [scroll.id]: http(),
+    [base.id]: http(),
+    [arbitrum.id]: http(),
+    [optimism.id]: http(),
+    [polygon.id]: http(),
+    [linea.id]: http(),
+  },
+  connectors: [
+    injected()
+  ]
+})
+
+// Create a client for react-query
+const queryClient = new QueryClient()
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const wallet = useWallet()
 
   return (
-    <WalletContext.Provider value={wallet}>
-      {children}
-    </WalletContext.Provider>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <WalletContext.Provider value={wallet}>
+          {children}
+        </WalletContext.Provider>
+      </QueryClientProvider>
+    </WagmiProvider>
   )
 }
 

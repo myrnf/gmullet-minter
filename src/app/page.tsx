@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useWaitForTransactionReceipt, useWriteContract } from "wagmi"
 
 export default function NFTMinter() {
   const [nftPrice] = useState<number>(0.0005) // ETH price
@@ -58,37 +59,40 @@ export default function NFTMinter() {
         transport: custom(window.ethereum)
       })
 
-      const hash = await walletClient.writeContract({
+      const { writeContract } = useWriteContract({
+
+      })
+
+      writeContract({
         address: GMULLET_CONTRACT_ADDRESS,
         abi: GMULLET_ABI,
         functionName: "mint",
         value: parseEther(nftPrice.toString()),
         account: account as `0x${string}`,
-      });
-
-      // Show pending toast
-      toast.loading("Minting your GMullet NFT...", {
-        id: hash,
-      });
-
-      // Wait for transaction to be mined
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      }, {onSuccess: (hash) => {
+        toast.loading("Minting your GMullet NFT...", {
+          id: hash,
+        });
+        // Wait for transaction to be mined
+        const receipt = useWaitForTransactionReceipt({ hash })
+        console.log("receipt", receipt)
+      }})
 
       // Update balance after successful mint
       await updateBalance(account);
 
       // Show success toast
-      toast.success("Successfully minted your GMullet NFT!", {
-        id: hash,
-      });
+      //toast.success("Successfully minted your GMullet NFT!", {
+      //  id: hash,
+      //});
 
       // Add link to transaction
-      toast.message("View on ScrollScan", {
-        action: {
-          label: "View",
-          onClick: () => window.open(`https://scrollscan.com/tx/${receipt.hash}`, '_blank'),
-        },
-      });
+      // toast.message("View on ScrollScan", {
+      //   action: {
+      //     label: "View",
+      //     onClick: () => window.open(`https://scrollscan.com/tx/${receipt.hash}`, '_blank'),
+      //   },
+      // });
 
     } catch (error: any) {
       console.error('Minting error:', error);
